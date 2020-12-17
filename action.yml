@@ -1,0 +1,63 @@
+name: 'Tunnistamo Client Setup'
+description: 'This action is used to setup Tunnistamo for review environments'
+inputs:
+  kubeconfig_raw:
+    description: 'Kubeconfig as a text. Used to authenticate to Kubernetes cluster'
+    required: true
+  review_namespace:
+    description: "Namespace where review environment is running"
+    required: true
+  tunnistamo_namespace:
+    description: 'Namespace of Tunnistamo. Has to be in same cluster than review deployment'
+    required: true
+    default: 'tunnistamo-qa'
+  response_types:
+    description: 'Responses (authentication flow) needed for the client. Note that valid type should be enclosed with double quotes. Multiple values can be given separated with space'
+    default: '"id_token token"'
+  callback_path:
+    description: 'Where authentication should return to'
+    default: '/callback'
+  login_methods:
+    description: 'Which login methods are offered for the client. Multiple values can be given separated with space'
+    default: 'github'
+  api_scope: 
+    description: "API Scope for client to be bound with"
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup kubectl
+      run: |
+          echo "${KUBECONFIG_RAW}" > $(pwd)/kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+      shell: bash
+      env:
+        KUBECONFIG_RAW: ${{ inputs.kubeconfig_raw }}
+
+    - name: Get Tunnistamo pod
+      run:  |
+        TUNNISTAMO_POD=$(kubectl get po -n "${{ inputs.tunnistamo_namespace }}" -l app=master-tunnistamo -l track=staging -o jsonpath='{.items[0].metadata.name}')
+        echo "Using Tunnistamo pod $TUNNISTAMO_POD"
+        echo "TUNNISTAMO_POD=$TUNNISTAMO_POD" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Get Review environment URL
+      run: |
+        ENVIRONMENT_URL=$(kubectl get ingress -n "${{ inputs.review_namespace }}" -o jsonpath='{.items[0].spec.rules[0].host}')
+        echo "ENVIRONMENT_URL=https://$ENVIRONMENT_URL" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Add new client
+      run: |
+        [[ "${ENVIRONMENT_URL}" == */ ]] && ENVIRONMENT_URL="${ENVIRONMENT_URL: : -1}"
+        CALLBACK="${{ inputs.callback_path}}"
+        [[ "${CALLBACK}" != /* ]] && CALLBACK="/${CALLBACK}"
+        kubectl exec -n "${{ inputs.tunnistamo_namespace }}" "${TUNNISTAMO_POD}" -- ./manage.py add_oidc_client --name "${{ inputs.review_namespace }}" --response_types ${{ inputs.response_types }} --redirect_uris "${ENVIRONMENT_URL}${{ inputs.callback_path}}" --client_id "${{ inputs.review_namespace }}" --site_type dev --login_methods "${{ inputs.login_methods }}"
+        echo "Added client ${{ inputs.review_namespace }} to Tunnistamo"
+      shell: bash
+    
+    - name: Map client to API scope
+      run: | 
+        kubectl exec -n "${{ inputs.tunnistamo_namespace }}" "${TUNNISTAMO_POD}" -- ./manage.py add_oidc_client_to_api_scope --api_scope_identifier "${{ inputs.api_scope }}" --client_id "${{ inputs.review_namespace }}" 
+        echo "Mapped client ${{ inputs.review_namespace }} to API Scope ${{ inputs.api_scope }}"
+      shell: bash
