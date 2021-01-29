@@ -52,7 +52,7 @@ runs:
         [[ "${ENVIRONMENT_URL}" == */ ]] && ENVIRONMENT_URL="${ENVIRONMENT_URL: : -1}"
         CALLBACK="${{ inputs.callback_path}}"
         [[ "${CALLBACK}" != /* ]] && CALLBACK="/${CALLBACK}"
-        kubectl exec -n "${{ inputs.tunnistamo_namespace }}" "${TUNNISTAMO_POD}" -- ./manage.py add_oidc_client --name "${{ inputs.review_namespace }}" --response_types ${{ inputs.response_types }} --redirect_uris "${ENVIRONMENT_URL}${{ inputs.callback_path}}" --client_id "${{ inputs.review_namespace }}" --site_type dev --login_methods "${{ inputs.login_methods }}"
+        kubectl exec -n "${{ inputs.tunnistamo_namespace }}" "${TUNNISTAMO_POD}" -- ./manage.py add_oidc_client --name "${{ inputs.review_namespace }}" --response_types ${{ inputs.response_types }} --redirect_uris "${ENVIRONMENT_URL}${{ inputs.callback_path}}" --client_id "${{ inputs.review_namespace }}" --site_type dev --login_methods ${{ inputs.login_methods }}
         echo "Added client ${{ inputs.review_namespace }} to Tunnistamo"
       shell: bash
     
