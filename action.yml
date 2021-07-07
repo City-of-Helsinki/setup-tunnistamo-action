@@ -36,7 +36,7 @@ runs:
 
     - name: Get Tunnistamo pod
       run:  |
-        TUNNISTAMO_POD=$(kubectl get po -n "${{ inputs.tunnistamo_namespace }}" -l app=master-tunnistamo -l track=staging -o jsonpath='{.items[0].metadata.name}')
+        TUNNISTAMO_POD=$(kubectl get po -n "${{ inputs.tunnistamo_namespace }}" -l app=master-tunnistamo -l track=staging --field-selector status.phase=Running -o jsonpath='{.items[0].metadata.name}')
         echo "Using Tunnistamo pod $TUNNISTAMO_POD"
         echo "TUNNISTAMO_POD=$TUNNISTAMO_POD" >> $GITHUB_ENV
       shell: bash
